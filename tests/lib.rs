@@ -1,16 +1,11 @@
-extern crate robotparser;
-extern crate url;
-
-use robotparser::RobotFileParser;
+use robotstxt::RobotFileParser;
 use std::time::Duration;
 use url::Url;
 
 const AGENT: &'static str = "test_robotparser";
 
 fn robot_test(doc: &str, good_urls: Vec<&str>, bad_urls: Vec<&str>, agent: &str) {
-    let parser = RobotFileParser::new("http://www.baidu.com/robots.txt");
-    let lines: Vec<&str> = doc.split("\n").collect();
-    parser.parse(&lines);
+    let parser = RobotFileParser::parse(doc);
     for url in &good_urls {
         assert!(parser.can_fetch(agent, url));
     }
@@ -223,54 +218,49 @@ fn test_robots_txt_read() {
 
 #[test]
 fn test_robots_text_crawl_delay() {
-    let parser = RobotFileParser::new("http://www.python.org/robots.txt");
-    let doc = "User-agent: Yandex\n\
-    Crawl-delay: 2.35\n\
-    Disallow: /search/\n";
-    let lines: Vec<&str> = doc.split("\n").collect();
-    parser.parse(&lines);
-    assert_eq!(Duration::new(2,350 * 1000 * 1000), parser.get_crawl_delay("Yandex").unwrap());
+    let parser = RobotFileParser::parse("\
+        User-agent: Yandex\n\
+        Crawl-delay: 2.35\n\
+        Disallow: /search/\n"
+    );
+    assert_eq!(Duration::new(2,350 * 1000 * 1000), parser.crawl_delay("Yandex").unwrap());
 }
 
 #[test]
 fn test_robots_text_sitemaps() {
-    let parser = RobotFileParser::new("http://www.python.org/robots.txt");
-    let doc = "User-agent: Yandex\n\
-    Sitemap:  http://example.com/sitemap1.xml
-    Sitemap:  http://example.com/sitemap2.xml
-    Sitemap:  http://example.com/sitemap3.xml
-    Disallow: /search/\n";
-    let lines: Vec<&str> = doc.split("\n").collect();
-    parser.parse(&lines);
+    let parser = RobotFileParser::parse("\
+        User-agent: Yandex\n\
+        Sitemap:  http://example.com/sitemap1.xml
+        Sitemap:  http://example.com/sitemap2.xml
+        Sitemap:  http://example.com/sitemap3.xml
+        Disallow: /search/\n"
+    );
     assert_eq!(
         vec![
             Url::parse("http://example.com/sitemap1.xml").unwrap(),
             Url::parse("http://example.com/sitemap2.xml").unwrap(),
             Url::parse("http://example.com/sitemap3.xml").unwrap()
         ],
-        parser.get_sitemaps("Yandex")
+        *parser.sitemaps("Yandex").unwrap()
     );
 }
 
 #[test]
 fn test_robots_text_request_rate() {
-    let parser = RobotFileParser::new("http://www.python.org/robots.txt");
-    let doc =
-        "User-agent: Yandex\n\
+    let parser = RobotFileParser::parse("User-agent: Yandex\n\
         Request-rate: 3/15\n\
-        Disallow: /search/\n";
-    let lines: Vec<&str> = doc.split("\n").collect();
-    parser.parse(&lines);
-    let req_rate = parser.get_req_rate("Yandex").unwrap();
+        Disallow: /search/\n"
+    );
+    let req_rate = parser.request_rate("Yandex").unwrap();
     assert_eq!(3, req_rate.requests);
     assert_eq!(15, req_rate.seconds);
 
-    let req_rate = parser.get_req_rate("Google");
+    let req_rate = parser.request_rate("Google");
     assert!(req_rate.is_none());
 }
 
 #[test]
 fn test_robots_127_0_0_1() {
     // Ensure it does not panic
-    RobotFileParser::new("http://127.0.0.1:4000/robots.txt");
+    RobotFileParser::parse("");
 }
